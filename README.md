@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # AXDS web system - Grad-CAM heat-map
 
 ## 1. Add the Grad-CAM model
@@ -25,3 +26,6 @@ POST /predict (multipart field `file`) ->
 `data` is row-major, values 0..1. The browser upsamples and colours it.
 
 Optional env vars: GRADCAM_MODEL_PATH, CLASSIFIER_MODEL_PATH, MAX_UPLOAD_MB (default 20), ALLOWED_ORIGINS (default *).
+=======
+# AI-Powered-Chest-X-Ray-system---Web-App
+>>>>>>> c43b58786d1443e9a195bf71240dc804b8ea9d36
