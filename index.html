@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXDS — AI Chest X-Ray Detection System</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBTinkDbOGL5WuKDmNfSwQVBtNNtaWX8kw",
+    authDomain: "lung-classifier-5fca6.firebaseapp.com",
+    projectId: "lung-classifier-5fca6",
+    storageBucket: "lung-classifier-5fca6.firebasestorage.app",
+    messagingSenderId: "446701364224",
+    appId: "1:446701364224:web:dcf165ae93b834183a64e5"
+  };
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  function showAuth(screen) {
+    document.getElementById('auth-overlay').style.display = 'flex';
+    document.getElementById('login-screen').style.display  = screen==='login'  ? 'block' : 'none';
+    document.getElementById('signup-screen').style.display = screen==='signup' ? 'block' : 'none';
+    document.getElementById('main-app').style.display = 'none';
+    clearErrors();
+  }
+  function showApp(user) {
+    document.getElementById('auth-overlay').style.display = 'none';
+    document.getElementById('main-app').style.display = 'flex';
+    document.getElementById('user-name-display').textContent  = user.displayName || user.email.split('@')[0];
+    document.getElementById('user-email-display').textContent = user.email;
+  }
+  function clearErrors() {
+    document.querySelectorAll('.auth-error').forEach(e => e.textContent = '');
+  }
+  function errMsg(code) {
+    const m = {
+      'auth/email-already-in-use': 'This email is already registered.',
+      'auth/invalid-email': 'Invalid email address.',
+      'auth/weak-password': 'Password must be at least 6 characters.',
+      'auth/user-not-found': 'No account found with this email.',
+      'auth/wrong-password': 'Incorrect password.',
+      'auth/invalid-credential': 'Invalid email or password.',
+      'auth/too-many-requests': 'Too many attempts. Try again later.',
+    };
+    return m[code] || 'An error occurred. Please try again.';
+  }
+
+  onAuthStateChanged(auth, user => { if(user) showApp(user); else showAuth('login'); });
+
+  document.getElementById('login-btn').addEventListener('click', async () => {
+    const email=document.getElementById('login-email').value.trim();
+    const pass=document.getElementById('login-pass').value;
+    const err=document.getElementById('login-error');
+    if(!email||!pass){err.textContent='Please fill in all fields.';return;}
+    const btn=document.getElementById('login-btn');
+    btn.textContent='Signing in...'; btn.disabled=true;
+    try { await signInWithEmailAndPassword(auth,email,pass); }
+    catch(e){ err.textContent=errMsg(e.code); btn.textContent='SIGN IN'; btn.disabled=false; }
+  });
+
+  document.getElementById('signup-btn').addEventListener('click', async () => {
+    const name=document.getElementById('signup-name').value.trim();
+    const email=document.getElementById('signup-email').value.trim();
+    const pass=document.getElementById('signup-pass').value;
+    const pass2=document.getElementById('signup-pass2').value;
+    const agreed=document.getElementById('signup-terms').checked;
+    const err=document.getElementById('signup-error');
+    if(!name||!email||!pass||!pass2){err.textContent='Please fill in all fields.';return;}
+    if(pass!==pass2){err.textContent='Passwords do not match.';return;}
+    if(pass.length<6){err.textContent='Password must be at least 6 characters.';return;}
+    if(!agreed){err.textContent='You must agree to the Terms and Privacy Policy.';return;}
+    const btn=document.getElementById('signup-btn');
+    btn.textContent='Creating account...'; btn.disabled=true;
+    try {
+      const cred=await createUserWithEmailAndPassword(auth,email,pass);
+      await updateProfile(cred.user,{displayName:name});
+    } catch(e){ err.textContent=errMsg(e.code); btn.textContent='CREATE ACCOUNT'; btn.disabled=false; }
+  });
+
+  document.getElementById('signout-btn').addEventListener('click', ()=>signOut(auth));
+  document.getElementById('go-signup').addEventListener('click', ()=>showAuth('signup'));
+  document.getElementById('go-login').addEventListener('click',  ()=>showAuth('login'));
+</script>
+<style>
+:root {
+  --bg:#050d1a; --panel:#0a1628; --panel2:#0d1f38;
+  --border:#1a2e4a; --accent:#00d4ff;
+  --text:#e0eaf5; --muted:#4a6280;
+  --covid:#ff4d6d; --normal:#00e5a0; --opacity:#ffd166; --viral:#a78bfa;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  padding:0 20px 60px;
+  background-image:radial-gradient(ellipse at 20% 10%,rgba(0,212,255,.06) 0%,transparent 50%),
+    radial-gradient(ellipse at 80% 80%,rgba(0,153,187,.04) 0%,transparent 50%);
+}
+/* NAV */
+nav{width:100%;max-width:920px;display:flex;justify-content:space-between;align-items:center;padding:20px 0;border-bottom:1px solid var(--border);margin-bottom:40px;}
+.nav-logo{font-family:'Space Mono',monospace;font-size:13px;color:var(--accent);letter-spacing:3px;}
+.nav-links{display:flex;gap:6px;}
+.nav-tab{padding:7px 16px;border-radius:8px;font-size:12px;font-family:'Space Mono',monospace;letter-spacing:1px;cursor:pointer;border:1px solid transparent;color:var(--muted);background:transparent;transition:all .2s;}
+.nav-tab:hover{color:var(--text);border-color:var(--border);}
+.nav-tab.active{color:var(--accent);border-color:var(--accent);background:rgba(0,212,255,.06);}
+/* PAGES */
+.page{display:none;width:100%;max-width:920px;animation:fadeUp .4s ease both;}
+.page.active{display:block;}
+/* HEADER */
+header{text-align:center;margin-bottom:36px;}
+.logo-tag{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:4px;color:var(--accent);opacity:.8;margin-bottom:10px;}
+h1{font-family:'Space Mono',monospace;font-size:clamp(20px,3.5vw,32px);font-weight:700;letter-spacing:-1px;line-height:1.15;}
+h1 span{color:var(--accent);}
+.subtitle{margin-top:8px;font-size:13px;color:var(--muted);font-weight:300;}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(5,13,26,.93);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;backdrop-filter:blur(4px);}
+.modal-box{background:var(--panel2);border:1px solid var(--border);border-radius:16px;padding:36px;max-width:480px;width:100%;animation:fadeUp .4s ease both;}
+.modal-icon{font-size:36px;margin-bottom:16px;}
+.modal-title{font-family:'Space Mono',monospace;font-size:16px;color:var(--accent);margin-bottom:12px;}
+.modal-text{font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:24px;}
+.modal-text strong{color:var(--text);}
+.modal-btn{width:100%;padding:13px;background:var(--accent);color:#000;border:none;border-radius:10px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:background .2s;}
+.modal-btn:hover{background:#00eeff;}
+/* CARD */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:20px;}
+.card-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:8px;}
+.card-title::before{content:'—';color:var(--accent);}
+/* FORM */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.form-group{display:flex;flex-direction:column;gap:6px;}
+label{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:1px;}
+input,select{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;transition:border-color .2s;outline:none;}
+input:focus,select:focus{border-color:var(--accent);}
+input.invalid{border-color:var(--covid);}
+select option{background:var(--panel2);}
+/* DROP ZONE */
+.drop-zone{border:2px dashed var(--border);border-radius:12px;padding:40px 24px;text-align:center;cursor:pointer;transition:all .25s;position:relative;background:rgba(0,212,255,.02);}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(0,212,255,.05);}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.drop-icon{width:52px;height:52px;margin:0 auto 14px;background:rgba(0,212,255,.08);border-radius:50%;display:flex;align-items:center;justify-content:center;}
+.drop-icon svg{width:24px;height:24px;stroke:var(--accent);fill:none;}
+.drop-label{font-size:14px;margin-bottom:5px;}
+.drop-sub{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;}
+/* DEMO IMAGES */
+.demo-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+.demo-btn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 14px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .2s;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+.demo-btn:hover{border-color:var(--accent);color:var(--accent);}
+.demo-dot{width:8px;height:8px;border-radius:50%;}
+/* PREVIEW */
+.preview-wrap{display:none;margin-top:20px;border-radius:12px;overflow:hidden;border:1px solid var(--border);position:relative;}
+.preview-wrap img{width:100%;max-height:300px;object-fit:contain;background:#000;display:block;}
+.preview-badge{position:absolute;top:10px;left:10px;background:rgba(5,13,26,.85);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:2px;}
+/* SKELETON */
+.skeleton{background:linear-gradient(90deg,var(--panel2) 25%,rgba(26,46,74,.6) 50%,var(--panel2) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px;}
+.skeleton-img{width:100%;height:200px;border-radius:12px;margin-top:20px;}
+.skeleton-bar{height:12px;margin-bottom:10px;border-radius:6px;}
+.skeleton-bar.w80{width:80%;} .skeleton-bar.w60{width:60%;} .skeleton-bar.w40{width:40%;}
+/* VALIDATION */
+.validation-box{display:none;margin-top:12px;padding:11px 14px;background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.3);border-radius:8px;font-size:12px;color:#ff6b84;font-family:'Space Mono',monospace;}
+/* BUTTONS */
+.btn-row{display:flex;gap:10px;margin-top:16px;}
+.btn{flex:1;padding:13px;background:var(--accent);color:#000;border:none;border-radius:10px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn:hover{background:#00eeff;transform:translateY(-1px);}
+.btn:active{transform:translateY(0);}
+.btn:disabled{background:var(--muted);cursor:not-allowed;transform:none;}
+.btn-outline{flex:1;padding:13px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:2px;cursor:pointer;transition:all .2s;}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+/* LOADER */
+.loader{width:16px;height:16px;border:2px solid rgba(0,0,0,.3);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;display:none;}
+/* RESULT */
+.result-box{display:none;animation:fadeUp .4s ease both;}
+.result-main{display:flex;align-items:center;gap:16px;padding:20px;border-radius:12px;margin-bottom:20px;border:1px solid var(--border);flex-wrap:wrap;}
+.result-icon{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.result-label{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;}
+.result-meta{font-size:12px;color:var(--muted);margin-top:3px;}
+.severity-badge{margin-left:auto;padding:7px 14px;border-radius:99px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;border:1px solid;flex-shrink:0;}
+/* CLASS BARS */
+.class-bars{display:flex;flex-direction:column;gap:14px;}
+.class-bar-row{display:flex;flex-direction:column;gap:5px;}
+.class-bar-info{display:flex;justify-content:space-between;font-size:12px;font-family:'Space Mono',monospace;}
+.class-bar-bg{height:6px;background:var(--border);border-radius:99px;overflow:hidden;}
+.class-bar-fill{height:100%;border-radius:99px;transition:width .9s cubic-bezier(.16,1,.3,1);width:0%;}
+/* ERROR */
+.error-box{display:none;margin-top:16px;padding:13px 16px;background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.3);border-radius:10px;font-size:12px;color:#ff6b84;font-family:'Space Mono',monospace;}
+/* HISTORY */
+.history-empty{text-align:center;padding:40px;color:var(--muted);font-size:13px;}
+.history-list{display:flex;flex-direction:column;gap:10px;}
+.history-item{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);transition:border-color .2s;}
+.history-item:hover{border-color:var(--accent);}
+.history-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#000;flex-shrink:0;border:1px solid var(--border);}
+.history-label{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;}
+.history-meta{font-size:11px;color:var(--muted);margin-top:2px;}
+.history-conf{margin-left:auto;font-family:'Space Mono',monospace;font-size:13px;flex-shrink:0;}
+.history-clear{font-size:11px;color:var(--muted);cursor:pointer;font-family:'Space Mono',monospace;}
+.history-clear:hover{color:var(--covid);}
+/* ABOUT */
+.about-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+.about-stat{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:18px 14px;text-align:center;}
+.about-stat-val{font-family:'Space Mono',monospace;font-size:20px;color:var(--accent);font-weight:700;}
+.about-stat-label{font-size:11px;color:var(--muted);margin-top:4px;}
+.about-text{font-size:14px;color:var(--muted);line-height:1.75;margin-bottom:16px;}
+.about-text strong{color:var(--text);}
+/* CLASSIFICATION TABLE */
+.cls-table{width:100%;border-collapse:collapse;font-size:13px;}
+.cls-table th{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);}
+.cls-table td{padding:10px 12px;border-bottom:1px solid rgba(26,46,74,.5);}
+.cls-table tr:last-child td{border-bottom:none;}
+/* CONFUSION MATRIX */
+.cm-wrap{overflow-x:auto;}
+.cm-table{border-collapse:collapse;font-family:'Space Mono',monospace;font-size:11px;margin:0 auto;}
+.cm-table th{padding:8px 12px;color:var(--muted);font-size:10px;letter-spacing:1px;}
+.cm-table td{padding:10px 14px;text-align:center;border-radius:4px;font-weight:700;font-size:12px;}
+.cm-diag{background:rgba(0,212,255,.15);color:var(--accent);}
+.cm-off{background:rgba(255,77,109,.06);color:var(--muted);}
+.cm-axis{color:var(--muted);font-size:10px;padding:6px 10px;}
+/* LEGEND */
+.class-legend{display:flex;flex-direction:column;gap:10px;}
+.legend-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--panel2);border-radius:10px;border:1px solid var(--border);}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.legend-name{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;min-width:130px;}
+.legend-desc{font-size:12px;color:var(--muted);}
+/* COLORS */
+.color-covid{color:var(--covid)} .color-normal{color:var(--normal)} .color-opacity{color:var(--opacity)} .color-viral{color:var(--viral)}
+.bg-covid{background:rgba(255,77,109,.12)} .bg-normal{background:rgba(0,229,160,.12)} .bg-opacity{background:rgba(255,209,102,.12)} .bg-viral{background:rgba(167,139,250,.12)}
+.fill-covid{background:var(--covid)} .fill-normal{background:var(--normal)} .fill-opacity{background:var(--opacity)} .fill-viral{background:var(--viral)}
+.dot-covid{background:var(--covid)} .dot-normal{background:var(--normal)} .dot-opacity{background:var(--opacity)} .dot-viral{background:var(--viral)}
+footer{margin-top:40px;font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;text-align:center;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media(max-width:600px){
+  .form-grid{grid-template-columns:1fr}
+  .about-grid{grid-template-columns:1fr 1fr}
+  .btn-row{flex-direction:column}
+  .result-main{flex-direction:column;align-items:flex-start}
+  .severity-badge{margin-left:0}
+}
+
+/* ── GRAD-CAM ── */
+.hm-stage-wrap{background:#000;border:1px solid var(--border);border-radius:12px;text-align:center;overflow:hidden;}
+.hm-stage{position:relative;display:inline-block;line-height:0;max-width:100%;}
+.hm-stage img{display:block;max-width:100%;max-height:460px;}
+.hm-stage canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity .15s;}
+.hm-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-top:14px;}
+.hm-chips{display:flex;gap:6px;}
+.hm-chip{padding:6px 14px;border-radius:99px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;border:1px solid var(--border);color:var(--muted);background:transparent;transition:all .2s;}
+.hm-chip:hover{color:var(--text);}
+.hm-chip.active{color:var(--accent);border-color:var(--accent);background:rgba(0,212,255,.08);}
+.hm-opt{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-family:'Space Mono',monospace;}
+.hm-opt input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);padding:0;}
+.hm-opt input[type=range]{width:120px;padding:0;accent-color:var(--accent);}
+.hm-legend{height:8px;border-radius:4px;margin-top:16px;background:linear-gradient(90deg,#00008f,#00a0ff,#80ff80,#ffe000,#800000);}
+.hm-legend-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:5px;}
+.hm-caption{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:14px;}
+.hm-caption strong{color:var(--text);}
+.hm-note{margin-top:12px;padding:11px 14px;background:rgba(255,209,102,.07);border:1px solid rgba(255,209,102,.25);border-radius:8px;font-size:11.5px;color:#e6c27a;line-height:1.6;}
+
+/* ── AUTH ── */
+#auth-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;background-image:radial-gradient(ellipse at 20% 10%,rgba(0,212,255,.07) 0%,transparent 50%),radial-gradient(ellipse at 80% 80%,rgba(0,153,187,.05) 0%,transparent 50%);}
+.auth-card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:40px 36px;width:100%;max-width:420px;animation:fadeUp .4s ease both;}
+.auth-logo{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:4px;color:var(--accent);opacity:.8;margin-bottom:14px;}
+.auth-title{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-1px;}
+.auth-title span{color:var(--accent);}
+.auth-subtitle{font-size:13px;color:var(--muted);margin-bottom:28px;}
+.auth-field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.auth-field label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);}
+.auth-field input{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s;}
+.auth-field input:focus{border-color:var(--accent);}
+.auth-terms{display:flex;align-items:flex-start;gap:10px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5;}
+.auth-terms input[type=checkbox]{width:16px;height:16px;margin-top:2px;accent-color:var(--accent);flex-shrink:0;}
+.auth-terms a{color:var(--accent);text-decoration:none;}
+.auth-terms a:hover{text-decoration:underline;}
+.auth-btn{width:100%;padding:14px;background:var(--accent);color:#000;border:none;border-radius:10px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .2s;margin-bottom:16px;}
+.auth-btn:hover{background:#00eeff;transform:translateY(-1px);}
+.auth-btn:disabled{background:var(--muted);cursor:not-allowed;transform:none;}
+.auth-switch{text-align:center;font-size:13px;color:var(--muted);}
+.auth-switch span{color:var(--accent);cursor:pointer;font-weight:600;}
+.auth-switch span:hover{text-decoration:underline;}
+.auth-error{font-size:12px;color:#ff6b84;font-family:'Space Mono',monospace;min-height:18px;margin-bottom:12px;}
+/* user badge in nav */
+#user-badge{display:flex;align-items:center;gap:10px;}
+#user-badge-info{display:flex;flex-direction:column;align-items:flex-end;}
+#user-name-display{font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);}
+#user-email-display{font-size:10px;color:var(--muted);}
+#signout-btn{padding:6px 14px;border-radius:8px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;border:1px solid rgba(255,77,109,.4);color:#ff6b84;background:rgba(255,77,109,.06);transition:all .2s;}
+#signout-btn:hover{background:rgba(255,77,109,.15);}
+#main-app{flex-direction:column;align-items:center;width:100%;}
+</style>
+</head>
+<body>
+
+<!-- DISCLAIMER -->
+<div class="modal-overlay" id="disclaimerModal">
+  <div class="modal-box">
+    <div class="modal-icon">⚠️</div>
+    <div class="modal-title">RESEARCH USE ONLY</div>
+    <p class="modal-text">
+      <strong>AXDS</strong> is an AI-powered chest X-ray analysis tool developed as an academic FYP project.<br><br>
+      This system is <strong>not a certified medical device</strong> and must not be used for clinical diagnosis, treatment decisions, or patient care.<br><br>
+      All results must be verified by a <strong>qualified medical professional</strong>.
+    </p>
+    <button class="modal-btn" onclick="document.getElementById('disclaimerModal').style.display='none'">I UNDERSTAND — CONTINUE</button>
+  </div>
+</div>
+
+<!-- NAV -->
+<div id="main-app" style="display:none;flex-direction:column;align-items:center;width:100%;"><nav>
+  <div class="nav-logo">// AXDS · v1.0</div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div class="nav-links">
+      <button class="nav-tab active" onclick="showPage('analyzer',this)">Analyzer</button>
+      <button class="nav-tab" onclick="showPage('history',this)">History</button>
+      <button class="nav-tab" onclick="showPage('about',this)">About</button>
+    </div>
+    <div id="user-badge">
+      <div id="user-badge-info">
+        <span id="user-name-display"></span>
+        <span id="user-email-display"></span>
+      </div>
+      <button id="signout-btn">SIGN OUT</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══ ANALYZER ═══ -->
+<div class="page active" id="page-analyzer">
+  <header>
+    <div class="logo-tag">// AI-Powered Diagnostic Tool</div>
+    <h1>AI-Powered <span>Chest X-Ray</span><br>Disease Detection</h1>
+    <p class="subtitle">EfficientNetB3 · 4-Class Pulmonary Analysis · 300×300px</p>
+  </header>
+
+  <!-- Patient Info -->
+  <div class="card">
+    <div class="card-title">Patient Information</div>
+    <div class="form-grid">
+      <div class="form-group"><label>PATIENT NAME</label><input type="text" id="patientName" placeholder="e.g. John Doe"></div>
+      <div class="form-group"><label>AGE</label><input type="number" id="patientAge" placeholder="e.g. 45" min="1" max="120"></div>
+      <div class="form-group"><label>GENDER</label>
+        <select id="patientGender"><option value="">Select gender</option><option>Male</option><option>Female</option><option>Other</option></select>
+      </div>
+      <div class="form-group"><label>PATIENT ID (optional)</label><input type="text" id="patientId" placeholder="e.g. PT-0042"></div>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="card">
+    <div class="card-title">X-Ray Upload</div>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*">
+      <div class="drop-icon"><svg viewBox="0 0 24 24" stroke-width="1.5"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg></div>
+      <div class="drop-label">Drop your chest X-ray here</div>
+      <div class="drop-sub">or click to browse · PNG, JPG, JPEG</div>
+    </div>
+
+    <!-- Demo images -->
+    <div style="margin-top:16px;">
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;">— OR LOAD DEMO IMAGE</div>
+      <div class="demo-row">
+        <div class="demo-btn" onclick="loadDemo('COVID')"><div class="legend-dot dot-covid"></div>COVID-19</div>
+        <div class="demo-btn" onclick="loadDemo('Normal')"><div class="legend-dot dot-normal"></div>NORMAL</div>
+        <div class="demo-btn" onclick="loadDemo('Lung Opacity')"><div class="legend-dot dot-opacity"></div>LUNG OPACITY</div>
+        <div class="demo-btn" onclick="loadDemo('Viral Pneumonia')"><div class="legend-dot dot-viral"></div>VIRAL PNEUMONIA</div>
+      </div>
+    </div>
+
+    <div class="validation-box" id="validationBox"></div>
+
+    <!-- Skeleton loader (shown while analyzing) -->
+    <div id="skeletonLoader" style="display:none;">
+      <div class="skeleton skeleton-img"></div>
+      <div style="margin-top:20px;">
+        <div class="skeleton skeleton-bar w80"></div>
+        <div class="skeleton skeleton-bar w60"></div>
+        <div class="skeleton skeleton-bar w40"></div>
+      </div>
+    </div>
+
+    <div class="preview-wrap" id="previewWrap">
+      <img id="previewImg" src="" alt="X-ray preview">
+      <div class="preview-badge">X-RAY</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" id="analyzeBtn" disabled><span id="btnText">ANALYZE</span><div class="loader" id="loader"></div></button>
+      <button class="btn-outline" onclick="clearAll()">CLEAR</button>
+    </div>
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <!-- Result -->
+  <div class="result-box" id="resultBox">
+    <div class="card">
+      <div class="card-title">Diagnosis Result</div>
+      <div class="result-main">
+        <div class="result-icon" id="resultIcon"></div>
+        <div><div class="result-label" id="resultLabel"></div><div class="result-meta" id="resultMeta"></div></div>
+        <div class="severity-badge" id="severityBadge"></div>
+      </div>
+      <div class="card-title">Class Probabilities</div>
+      <div class="class-bars" id="classBars"></div>
+    </div>
+    <!-- Grad-CAM -->
+    <div class="card" id="heatmapCard" style="display:none;">
+      <div class="card-title">Grad-CAM Explanation</div>
+      <div class="hm-stage-wrap">
+        <div class="hm-stage">
+          <img id="hmBase" alt="X-ray with Grad-CAM overlay">
+          <canvas id="hmCanvas"></canvas>
+        </div>
+      </div>
+      <div class="hm-controls">
+        <div class="hm-chips">
+          <button class="hm-chip active" data-view="overlay" onclick="setHmView('overlay')">OVERLAY</button>
+          <button class="hm-chip" data-view="heatmap" onclick="setHmView('heatmap')">HEAT MAP</button>
+          <button class="hm-chip" data-view="original" onclick="setHmView('original')">ORIGINAL</button>
+        </div>
+        <label class="hm-opt" id="hmOpacityWrap">Opacity
+          <input type="range" id="hmOpacity" min="10" max="90" value="45" oninput="setHmOpacity(this.value)">
+        </label>
+        <label class="hm-opt" id="hmLungWrap">
+          <input type="checkbox" id="hmLung" onchange="setHmLung(this.checked)"> Lung fields only
+        </label>
+      </div>
+      <div class="hm-legend"></div>
+      <div class="hm-legend-labels"><span>Low influence</span><span>High influence</span></div>
+      <p class="hm-caption" id="hmCaption"></p>
+      <div class="hm-note">Highlights show which image regions most influenced the model, not confirmed pathology.
+        The map is coarse (10×10 grid) and the lung-field filter is an approximate anatomical template, not a segmentation.
+        For research use only.</div>
+    </div>
+
+    <div class="btn-row" style="margin-bottom:20px;">
+      <button class="btn" id="downloadBtn" onclick="downloadReport()">⬇ DOWNLOAD REPORT</button>
+      <button class="btn-outline" onclick="clearAll()">ANALYZE NEW IMAGE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ HISTORY ═══ -->
+<div class="page" id="page-history">
+  <header>
+    <div class="logo-tag">// Session Log</div>
+    <h1>Analysis <span>History</span></h1>
+    <p class="subtitle">All predictions from this session</p>
+  </header>
+  <div class="card">
+    <div class="card-title" style="justify-content:space-between;">
+      <span style="display:flex;align-items:center;gap:8px;"><span style="color:var(--accent)">—</span>RECENT ANALYSES</span>
+      <span class="history-clear" onclick="clearHistory()">Clear All</span>
+    </div>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<!-- ═══ ABOUT ═══ -->
+<div class="page" id="page-about">
+  <header>
+    <div class="logo-tag">// Model Information</div>
+    <h1>About <span>AXDS</span></h1>
+    <p class="subtitle">AI-Powered Chest X-Ray Disease Detection System</p>
+  </header>
+
+  <!-- Stats -->
+  <div class="card">
+    <div class="card-title">Model Performance</div>
+    <div class="about-grid">
+      <div class="about-stat"><div class="about-stat-val">91.24%</div><div class="about-stat-label">Test Accuracy</div></div>
+      <div class="about-stat"><div class="about-stat-val">98.71%</div><div class="about-stat-label">AUC Score</div></div>
+      <div class="about-stat"><div class="about-stat-val">91.61%</div><div class="about-stat-label">Precision</div></div>
+      <div class="about-stat"><div class="about-stat-val">90.77%</div><div class="about-stat-label">Recall</div></div>
+    </div>
+
+    <!-- Per-class table -->
+    <div class="card-title" style="margin-top:4px;">Per-Class Classification Report</div>
+    <table class="cls-table">
+      <thead>
+        <tr>
+          <th>CLASS</th><th>PRECISION</th><th>RECALL</th><th>F1-SCORE</th><th>SUPPORT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="color-covid">COVID-19</td><td>89.96%</td><td>92.62%</td><td>91.27%</td><td>542</td></tr>
+        <tr><td class="color-opacity">Lung Opacity</td><td>90.98%</td><td>86.14%</td><td>88.50%</td><td>902</td></tr>
+        <tr><td class="color-normal">Normal</td><td>91.30%</td><td>93.39%</td><td>92.34%</td><td>1529</td></tr>
+        <tr><td class="color-viral">Viral Pneumonia</td><td>95.48%</td><td>94.06%</td><td>94.76%</td><td>202</td></tr>
+        <tr style="border-top:1px solid var(--border);">
+          <td style="color:var(--muted);font-size:11px;">Weighted Avg</td>
+          <td style="color:var(--muted)">91.25%</td><td style="color:var(--muted)">91.24%</td><td style="color:var(--muted)">91.22%</td><td style="color:var(--muted)">3175</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Confusion Matrix -->
+  <div class="card">
+    <div class="card-title">Confusion Matrix (Normalized)</div>
+    <div class="cm-wrap">
+      <table class="cm-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="color-covid">COVID</th>
+            <th class="color-opacity">Lung Opacity</th>
+            <th class="color-normal">Normal</th>
+            <th class="color-viral">Viral Pneumonia</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cm-axis color-covid">COVID</td>
+            <td class="cm-diag">92.62%</td><td class="cm-off">3.32%</td><td class="cm-off">3.32%</td><td class="cm-off">0.74%</td>
+          </tr>
+          <tr>
+            <td class="cm-axis color-opacity">Lung Opacity</td>
+            <td class="cm-off">2.00%</td><td class="cm-diag">86.14%</td><td class="cm-off">11.86%</td><td class="cm-off">0.00%</td>
+          </tr>
+          <tr>
+            <td class="cm-axis color-normal">Normal</td>
+            <td class="cm-off">2.42%</td><td class="cm-off">3.86%</td><td class="cm-diag">93.39%</td><td class="cm-off">0.33%</td>
+          </tr>
+          <tr>
+            <td class="cm-axis color-viral">Viral Pneumonia</td>
+            <td class="cm-off">0.50%</td><td class="cm-off">0.00%</td><td class="cm-off">5.45%</td><td class="cm-diag">94.06%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:14px;font-family:'Space Mono',monospace;">Diagonal = correct predictions. Off-diagonal = misclassifications. Test set: 3,175 images.</p>
+  </div>
+
+  <!-- System Overview -->
+  <div class="card">
+    <div class="card-title">System Overview</div>
+    <p class="about-text"><strong>AXDS</strong> (AI X-Ray Detection System) is an academic final year project using a deep learning model trained on chest X-ray images to classify pulmonary conditions. The model is based on <strong>EfficientNetB3</strong>, a convolutional neural network architecture optimized for accuracy and efficiency.</p>
+    <p class="about-text">The backend is powered by <strong>FastAPI</strong> with a <strong>TensorFlow Lite</strong> interpreter. The frontend communicates via REST API for real-time predictions with server-side inference timing.</p>
+  </div>
+
+  <!-- Classes -->
+  <div class="card">
+    <div class="card-title">Detectable Conditions</div>
+    <div class="class-legend">
+      <div class="legend-item"><div class="legend-dot dot-covid"></div><div class="legend-name color-covid">COVID-19</div><div class="legend-desc">Coronavirus infection causing bilateral ground-glass opacities in the lungs</div></div>
+      <div class="legend-item"><div class="legend-dot dot-normal"></div><div class="legend-name color-normal">Normal</div><div class="legend-desc">No abnormalities detected in the lung fields</div></div>
+      <div class="legend-item"><div class="legend-dot dot-opacity"></div><div class="legend-name color-opacity">Lung Opacity</div><div class="legend-desc">Increased density in lung tissue indicating fluid or consolidation</div></div>
+      <div class="legend-item"><div class="legend-dot dot-viral"></div><div class="legend-name color-viral">Viral Pneumonia</div><div class="legend-desc">Lung infection caused by viral pathogens other than COVID-19</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Known Limitations</div>
+    <p class="about-text"><strong>No X-Ray Verification:</strong> The system does not verify whether the uploaded image is an actual chest X-ray. Non-X-ray images (photos, screenshots, documents) will still produce a prediction, which will be meaningless. Users must ensure they upload valid posteroanterior (PA) chest X-ray images only.</p>
+    <p class="about-text"><strong>Lung Opacity Misclassification:</strong> Based on the confusion matrix, Lung Opacity has the highest misclassification rate (~11.86% confused with Normal), as the two conditions can appear visually similar in X-rays.</p>
+    <p class="about-text"><strong>Platform Variance:</strong> Minor confidence score differences (~5–25%) may occur between the web and mobile apps due to platform-level image decoding and interpolation differences between Python PIL and Flutter's image library.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Disclaimer</div>
+    <p class="about-text">This system is developed <strong>for research and educational purposes only</strong>. It is not a certified medical device and must not be used to make clinical decisions. Always consult a qualified healthcare professional for diagnosis and treatment.</p>
+  </div>
+</div>
+
+<footer>⚠ For research and educational purposes only. Not a medical device.</footer>
+</div>
+<!-- END MAIN-APP -->
+
+<script>
+const { jsPDF } = window.jspdf;
+// Served by uvicorn (port 8000) -> same origin; opened elsewhere (file://, Live Server) -> localhost:8000
+const API_BASE = window.AXDS_API_URL || (location.port === '8000' ? '' : 'http://localhost:8000');
+const API_URL = API_BASE + '/predict';
+let selectedFile = null, lastResult = null, sessionHistory = [];
+
+const severityMap = { CRITICAL:'Critical — Urgent care required', HIGH:'High — Seek medical attention', MODERATE:'Moderate — Consult a doctor', NORMAL:'Normal — No disease detected' };
+const classMap = {
+  'COVID':          {color:'covid',  emoji:'🦠',severity:'CRITICAL'},
+  'COVID-19':       {color:'covid',  emoji:'🦠',severity:'CRITICAL'},
+  'Normal':         {color:'normal', emoji:'✅',severity:'NORMAL'},
+  'Lung_Opacity':   {color:'opacity',emoji:'🌫️',severity:'HIGH'},
+  'Lung Opacity':   {color:'opacity',emoji:'🌫️',severity:'HIGH'},
+  'Viral Pneumonia':{color:'viral',  emoji:'🫁',severity:'MODERATE'},
+};
+const severityColors = {CRITICAL:'#ff4d6d',HIGH:'#ffd166',MODERATE:'#a78bfa',NORMAL:'#00e5a0'};
+function getClass(l){return classMap[l]||{color:'normal',emoji:'🔬',severity:'NORMAL'};}
+
+// Demo X-ray URLs (public domain chest X-rays from NIH/public datasets)
+const demoImages = {
+  'COVID':           'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/COVID-19_X-ray.jpg/300px-COVID-19_X-ray.jpg',
+  'Normal':          'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Normal_posteroanterior_%28PA%29_chest_radiograph_%28X-ray%29.jpg/300px-Normal_posteroanterior_%28PA%29_chest_radiograph_%28X-ray%29.jpg',
+  'Lung Opacity':    'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Pneumonia_x-ray.jpg/300px-Pneumonia_x-ray.jpg',
+  'Viral Pneumonia': 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Chest_radiograph_in_influenza_and_Haemophilus_influenzae.jpg/300px-Chest_radiograph_in_influenza_and_Haemophilus_influenzae.jpg',
+};
+
+function showPage(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+  if(id==='history') renderHistory();
+}
+
+// ── Input Validation ──────────────────────────────────
+function validateFile(file) {
+  const validTypes = ['image/jpeg','image/jpg','image/png','image/webp'];
+  const minSize = 5 * 1024; // 5 KB minimum
+  const maxSize = 20 * 1024 * 1024; // 20 MB maximum
+  if (!validTypes.includes(file.type))
+    return 'Invalid file type. Please upload a PNG or JPG image.';
+  if (file.size < minSize)
+    return 'File is too small (< 5KB). Please upload a proper X-ray image.';
+  if (file.size > maxSize)
+    return 'File is too large (> 20MB). Please upload a smaller image.';
+  return null;
+}
+
+function showValidation(msg) {
+  const box = document.getElementById('validationBox');
+  box.textContent = '⚠ ' + msg; box.style.display = 'block';
+}
+function hideValidation() { document.getElementById('validationBox').style.display = 'none'; }
+
+// ── File handling ──────────────────────────────────────
+const dropZone=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput');
+const previewWrap=document.getElementById('previewWrap'),previewImg=document.getElementById('previewImg');
+const analyzeBtn=document.getElementById('analyzeBtn'),btnText=document.getElementById('btnText');
+const loader=document.getElementById('loader'),resultBox=document.getElementById('resultBox'),errorBox=document.getElementById('errorBox');
+
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+fileInput.addEventListener('change',()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);});
+
+function loadFile(file) {
+  hideValidation();
+  const err = validateFile(file);
+  if (err) { showValidation(err); return; }
+  selectedFile = file;
+  previewImg.src = URL.createObjectURL(file);
+  previewWrap.style.display = 'block';
+  analyzeBtn.disabled = false;
+  resultBox.style.display = 'none';
+  errorBox.style.display = 'none';
+}
+
+async function loadDemo(label) {
+  hideValidation();
+  const url = demoImages[label];
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const file = new File([blob], label.replace(' ','_')+'.jpg', {type:'image/jpeg'});
+    selectedFile = file;
+    previewImg.src = URL.createObjectURL(blob);
+    previewWrap.style.display = 'block';
+    analyzeBtn.disabled = false;
+    resultBox.style.display = 'none';
+    errorBox.style.display = 'none';
+  } catch(e) {
+    showValidation('Could not load demo image. Check your internet connection.');
+  }
+}
+
+function clearAll() {
+  selectedFile=null; lastResult=null; fileInput.value='';
+  previewImg.src=''; previewWrap.style.display='none';
+  analyzeBtn.disabled=true; resultBox.style.display='none';
+  errorBox.style.display='none'; hideValidation();
+  document.getElementById('skeletonLoader').style.display='none';
+  document.getElementById('heatmapCard').style.display='none'; hm.raw=hm.lung=null;
+}
+
+// ── Analyze ────────────────────────────────────────────
+analyzeBtn.addEventListener('click', async()=>{
+  if(!selectedFile) return;
+  analyzeBtn.disabled=true; btnText.textContent='ANALYZING...';
+  loader.style.display='block';
+  previewWrap.style.display='none';
+  document.getElementById('skeletonLoader').style.display='block';
+  resultBox.style.display='none'; errorBox.style.display='none';
+
+  try {
+    const fd=new FormData(); fd.append('file',selectedFile);
+    const res=await fetch(API_URL,{method:'POST',body:fd});
+    if(!res.ok){
+      let detail=''; try{ detail=(await res.json()).detail||''; }catch(_){}
+      throw new Error(detail||('Server error: '+res.status));
+    }
+    const data=await res.json();
+    document.getElementById('skeletonLoader').style.display='none';
+    previewWrap.style.display='block';
+    showResult(data);
+  } catch(err) {
+    document.getElementById('skeletonLoader').style.display='none';
+    previewWrap.style.display='block';
+    showError(err.message.includes('Failed to fetch')
+      ?'❌ Cannot reach API. Make sure uvicorn is running on localhost:8000'
+      :'❌ '+err.message);
+  } finally {
+    analyzeBtn.disabled=false; btnText.textContent='ANALYZE'; loader.style.display='none';
+  }
+});
+
+function showResult(data) {
+  const {prediction,confidence,all_scores,inference_ms} = data;
+  const {color,emoji,severity} = getClass(prediction);
+  const label = prediction.replace('_',' ');
+  const sc = severityColors[severity];
+
+  document.getElementById('resultIcon').className=`result-icon bg-${color}`;
+  document.getElementById('resultIcon').textContent=emoji;
+  document.getElementById('resultLabel').className=`result-label color-${color}`;
+  document.getElementById('resultLabel').textContent=label;
+  document.getElementById('resultMeta').textContent=
+    `Confidence: ${confidence}%  ·  Server inference: ${inference_ms ?? '—'}ms`;
+
+  const sb=document.getElementById('severityBadge');
+  sb.textContent=severityMap[severity]; sb.style.color=sc;
+  sb.style.borderColor=sc; sb.style.background=sc+'18';
+
+  const barsEl=document.getElementById('classBars'); barsEl.innerHTML='';
+  const classOrder=['COVID','Lung Opacity','Normal','Viral Pneumonia'];
+  const scores=all_scores||{[prediction]:confidence/100};
+  classOrder.forEach(cls=>{
+    const key=Object.keys(scores).find(k=>k.replace('_',' ')===cls||k===cls)||cls;
+    const pct=scores[key]!==undefined?(scores[key]*100).toFixed(2):'0.00';
+    const c=getClass(cls).color;
+    const row=document.createElement('div'); row.className='class-bar-row';
+    row.innerHTML=`<div class="class-bar-info"><span class="color-${c}">${cls}</span><span style="color:var(--muted)">${pct}%</span></div><div class="class-bar-bg"><div class="class-bar-fill fill-${c}" data-w="${pct}" style="width:0%"></div></div>`;
+    barsEl.appendChild(row);
+  });
+  resultBox.style.display='block';
+  setTimeout(()=>document.querySelectorAll('.class-bar-fill').forEach(el=>el.style.width=el.dataset.w+'%'),50);
+
+  lastResult={prediction,confidence,all_scores,inference_ms,imageUrl:previewImg.src,heatmap:data.heatmap||null,
+    patient:{name:document.getElementById('patientName').value||'Unknown',age:document.getElementById('patientAge').value||'—',gender:document.getElementById('patientGender').value||'—',id:document.getElementById('patientId').value||'—'},
+    time:new Date().toLocaleString()};
+  renderHeatmap(lastResult);
+  sessionHistory.unshift(lastResult);
+}
+
+// ── Grad-CAM heat-map ──────────────────────────────────
+// Lung fields of a typical frontal chest X-ray: [centreU, centreV, radiusU, radiusV] (fractions of the image).
+const LUNG_ELLIPSES=[[0.28,0.42,0.23,0.42],[0.72,0.42,0.21,0.42]];
+const hm={raw:null,lung:null,w:0,h:0,view:'overlay',lungOnly:false,opacity:.45};
+
+function clamp01(v){return v<0?0:v>1?1:v;}
+function jetRGB(v){return [clamp01(1.5-Math.abs(4*v-3)),clamp01(1.5-Math.abs(4*v-2)),clamp01(1.5-Math.abs(4*v-1))];}
+function lungMask(u,v){
+  let best=0;
+  for(const e of LUNG_ELLIPSES){
+    const dx=(u-e[0])/e[2], dy=(v-e[1])/e[3], r2=dx*dx+dy*dy;
+    const w=r2<=.75?1:(r2>=1.25?0:(1.25-r2)/.5);
+    if(w>best) best=w;
+  }
+  return best;
+}
+// Bilinear-upsample the CAM grid and colourise it (jet). Weak activations are transparent.
+// Colours always come from the unmasked value: the lung filter only hides pixels, it never moves a peak.
+function buildHeatmapPixels(cam,camW,camH,w,h){
+  const raw=new Uint8ClampedArray(w*h*4), lung=new Uint8ClampedArray(w*h*4);
+  for(let y=0;y<h;y++){
+    const fy=((y+.5)/h)*camH-.5;
+    const y0=Math.min(Math.max(Math.floor(fy),0),camH-1), y1=Math.min(y0+1,camH-1), wy=clamp01(fy-y0);
+    for(let x=0;x<w;x++){
+      const fx=((x+.5)/w)*camW-.5;
+      const x0=Math.min(Math.max(Math.floor(fx),0),camW-1), x1=Math.min(x0+1,camW-1), wx=clamp01(fx-x0);
+      const v=clamp01(cam[y0*camW+x0]*(1-wx)*(1-wy)+cam[y0*camW+x1]*wx*(1-wy)+cam[y1*camW+x0]*(1-wx)*wy+cam[y1*camW+x1]*wx*wy);
+      const c=jetRGB(v), ramp=clamp01((v-.10)/.30), m=lungMask((x+.5)/w,(y+.5)/h), i=(y*w+x)*4;
+      raw[i]=lung[i]=Math.round(c[0]*255); raw[i+1]=lung[i+1]=Math.round(c[1]*255); raw[i+2]=lung[i+2]=Math.round(c[2]*255);
+      raw[i+3]=Math.round(ramp*255); lung[i+3]=Math.round(ramp*m*255);
+    }
+  }
+  return {raw,lung};
+}
+
+function renderHeatmap(res){
+  const card=document.getElementById('heatmapCard');
+  const hmData=res&&res.heatmap;
+  if(!hmData||!hmData.data||hmData.data.length!==hmData.width*hmData.height){card.style.display='none';hm.raw=hm.lung=null;return;}
+  const cam=hmData.data.slice(), peak=Math.max(...cam,1e-12);
+  for(let i=0;i<cam.length;i++) cam[i]/=peak;
+  const base=document.getElementById('hmBase');
+  const build=()=>{
+    const s=512/Math.max(base.naturalWidth,base.naturalHeight);
+    hm.w=Math.max(1,Math.round(base.naturalWidth*s)); hm.h=Math.max(1,Math.round(base.naturalHeight*s));
+    const px=buildHeatmapPixels(cam,hmData.width,hmData.height,hm.w,hm.h);
+    hm.raw=px.raw; hm.lung=px.lung;
+    paintHeatmap(); applyHmView();
+  };
+  hm.view='overlay'; hm.lungOnly=false; hm.opacity=.45;
+  document.getElementById('hmLung').checked=false;
+  document.getElementById('hmOpacity').value=45;
+  const label=(hmData['class']||res.prediction).replace('_',' ');
+  document.getElementById('hmCaption').innerHTML=
+    'Regions that most influenced the prediction <strong>'+escapeHtml(label)+'</strong> ('+res.confidence+'%). '+
+    'Red = strongest influence on this class.';
+  card.style.display='block';
+  base.onload=build; base.src=res.imageUrl;
+  if(base.complete&&base.naturalWidth) build();
+}
+function paintHeatmap(){
+  const cv=document.getElementById('hmCanvas');
+  cv.width=hm.w; cv.height=hm.h;
+  cv.getContext('2d').putImageData(new ImageData(hm.lungOnly?hm.lung:hm.raw,hm.w,hm.h),0,0);
+}
+function applyHmView(){
+  const base=document.getElementById('hmBase'), cv=document.getElementById('hmCanvas');
+  document.querySelectorAll('.hm-chip').forEach(c=>c.classList.toggle('active',c.dataset.view===hm.view));
+  cv.style.display=hm.view==='original'?'none':'block';
+  cv.style.opacity=hm.view==='overlay'?hm.opacity:1;
+  base.style.opacity=hm.view==='heatmap'?0:1;
+  document.getElementById('hmOpacityWrap').style.display=hm.view==='overlay'?'flex':'none';
+  document.getElementById('hmLungWrap').style.display=hm.view==='original'?'none':'flex';
+}
+function setHmView(v){hm.view=v;applyHmView();}
+function setHmOpacity(v){hm.opacity=v/100;applyHmView();}
+function setHmLung(on){hm.lungOnly=on;if(hm.raw){paintHeatmap();}}
+
+function escapeHtml(t){return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function loadImage(url){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;});}
+function fitBox(w,h,bw,bh){const s=Math.min(bw/w,bh/h);const fw=w*s,fh=h*s;return{w:fw,h:fh,dx:(bw-fw)/2,dy:(bh-fh)/2};}
+// Original X-ray + heat-map as one JPEG (used by the PDF report)
+async function composeOverlay(){
+  const im=await loadImage(lastResult.imageUrl);
+  const s=640/Math.max(im.naturalWidth,im.naturalHeight);
+  const c=document.createElement('canvas'); c.width=Math.round(im.naturalWidth*s); c.height=Math.round(im.naturalHeight*s);
+  const ctx=c.getContext('2d'); ctx.drawImage(im,0,0,c.width,c.height);
+  if(hm.raw){
+    const t=document.createElement('canvas'); t.width=hm.w; t.height=hm.h;
+    t.getContext('2d').putImageData(new ImageData(hm.lungOnly?hm.lung:hm.raw,hm.w,hm.h),0,0);
+    ctx.globalAlpha=hm.view==='overlay'?hm.opacity:.5; ctx.drawImage(t,0,0,c.width,c.height); ctx.globalAlpha=1;
+  }
+  return {url:c.toDataURL('image/jpeg',.85),w:c.width,h:c.height};
+}
+
+function showError(msg){errorBox.textContent=msg;errorBox.style.display='block';}
+
+// ── History ────────────────────────────────────────────
+function renderHistory(){
+  const el=document.getElementById('historyList');
+  if(!sessionHistory.length){el.innerHTML='<div class="history-empty">No analyses yet this session.</div>';return;}
+  el.innerHTML='<div class="history-list">'+sessionHistory.map(h=>{
+    const{color,emoji}=getClass(h.prediction);
+    return`<div class="history-item"><img class="history-thumb" src="${h.imageUrl}" alt="xray"><div><div class="history-label color-${color}">${emoji} ${h.prediction.replace('_',' ')}</div><div class="history-meta">${escapeHtml(h.patient.name)} · ${escapeHtml(h.time)}</div></div><div class="history-conf color-${color}">${h.confidence}%</div></div>`;
+  }).join('')+'</div>';
+}
+function clearHistory(){sessionHistory=[];renderHistory();}
+
+// ── PDF Report ─────────────────────────────────────────
+async function downloadReport(){
+  if(!lastResult) return;
+  const btn=document.getElementById('downloadBtn');
+  btn.textContent='GENERATING...'; btn.disabled=true;
+  try {
+    const doc=new jsPDF({unit:'mm',format:'a4'});
+    const W=210,M=20;
+    doc.setFillColor(5,13,26); doc.rect(0,0,W,297,'F');
+    doc.setFillColor(10,22,40); doc.rect(0,0,W,42,'F');
+    doc.setTextColor(0,212,255); doc.setFontSize(18); doc.setFont('helvetica','bold');
+    doc.text('AXDS DIAGNOSTIC REPORT',M,16);
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(74,98,128);
+    doc.text('AI-Powered Chest X-Ray Disease Detection System',M,25);
+    doc.text('Generated: '+lastResult.time,M,32);
+    doc.setTextColor(0,212,255); doc.setFontSize(8);
+    doc.text('RPT-'+Date.now().toString().slice(-6),W-M,25,{align:'right'});
+
+    let y=52;
+    doc.setFillColor(13,31,56); doc.roundedRect(M,y,W-M*2,36,3,3,'F');
+    doc.setFontSize(8); doc.setTextColor(74,98,128); doc.text('PATIENT INFORMATION',M+6,y+8);
+    doc.setTextColor(224,234,245); doc.setFontSize(10);
+    const p=lastResult.patient;
+    doc.text('Name: '+p.name,M+6,y+18);
+    doc.text('Age: '+p.age+'   Gender: '+p.gender+'   ID: '+p.id,M+6,y+28);
+    y+=44;
+
+    try {
+      const canvas=document.createElement('canvas');
+      const ctx=canvas.getContext('2d');
+      const imgEl=new Image(); imgEl.crossOrigin='anonymous'; imgEl.src=lastResult.imageUrl;
+      await new Promise(r=>{imgEl.onload=r;imgEl.onerror=r;});
+      canvas.width=imgEl.width||300; canvas.height=imgEl.height||300;
+      ctx.drawImage(imgEl,0,0);
+      const imgData=canvas.toDataURL('image/jpeg',.8);
+      doc.setFillColor(0,0,0); doc.rect(M,y,80,80,'F');
+      const fb=fitBox(canvas.width,canvas.height,80,80);
+      doc.addImage(imgData,'JPEG',M+fb.dx,y+fb.dy,fb.w,fb.h);
+      doc.setTextColor(0,212,255); doc.setFontSize(7); doc.text('CHEST X-RAY',M+2,y+77);
+      const dx=M+90;
+      const{severity}=getClass(lastResult.prediction);
+      const sc=severityColors[severity];
+      const rgb=sc==='#ff4d6d'?[255,77,109]:sc==='#00e5a0'?[0,229,160]:sc==='#ffd166'?[255,209,102]:[167,139,250];
+      doc.setTextColor(74,98,128); doc.setFontSize(8); doc.text('PRIMARY DIAGNOSIS',dx,y+10);
+      doc.setTextColor(...rgb); doc.setFontSize(20); doc.setFont('helvetica','bold');
+      doc.text(lastResult.prediction.replace('_',' '),dx,y+24);
+      doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(224,234,245);
+      doc.text('Confidence: '+lastResult.confidence+'%',dx,y+36);
+      doc.text('Server inference: '+(lastResult.inference_ms??'—')+'ms',dx,y+46);
+      doc.setTextColor(74,98,128); doc.setFontSize(8); doc.text('SEVERITY',dx,y+58);
+      doc.setTextColor(...rgb); doc.setFontSize(9); doc.text(severityMap[severity],dx,y+67);
+      y+=90;
+    } catch(e){y+=10;}
+
+    doc.setFillColor(13,31,56); doc.roundedRect(M,y,W-M*2,8,2,2,'F');
+    doc.setTextColor(74,98,128); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text('CLASS PROBABILITIES',M+6,y+5.5); y+=14;
+    const classOrder=['COVID','Lung Opacity','Normal','Viral Pneumonia'];
+    const rgbMap={'COVID':[255,77,109],'Lung Opacity':[255,209,102],'Normal':[0,229,160],'Viral Pneumonia':[167,139,250]};
+    const scores=lastResult.all_scores||{};
+    classOrder.forEach(cls=>{
+      const key=Object.keys(scores).find(k=>k.replace('_',' ')===cls||k===cls)||cls;
+      const pct=scores[key]!==undefined?parseFloat((scores[key]*100).toFixed(2)):0;
+      const cl=rgbMap[cls]||[74,98,128];
+      doc.setTextColor(224,234,245); doc.setFontSize(9); doc.setFont('helvetica','normal');
+      doc.text(cls,M,y+4); doc.setTextColor(...cl); doc.text(pct+'%',W-M,y+4,{align:'right'});
+      doc.setFillColor(26,46,74); doc.roundedRect(M+50,y,W-M*2-66,4,1,1,'F');
+      const fw=Math.max(0,(W-M*2-66)*pct/100);
+      if(fw>0){doc.setFillColor(...cl); doc.roundedRect(M+50,y,fw,4,1,1,'F');}
+      y+=12;
+    });
+
+    const drawFooter=()=>{
+      doc.setFillColor(10,22,40); doc.rect(0,282,W,15,'F');
+      doc.setTextColor(74,98,128); doc.setFontSize(7); doc.setFont('helvetica','normal');
+      doc.text('For research and educational purposes only. Not a certified medical device.',W/2,290,{align:'center'});
+    };
+    drawFooter();
+
+    // Page 2: Grad-CAM explanation
+    if(lastResult.heatmap && hm.raw){
+      doc.addPage();
+      doc.setFillColor(5,13,26); doc.rect(0,0,W,297,'F');
+      doc.setFillColor(10,22,40); doc.rect(0,0,W,30,'F');
+      doc.setTextColor(0,212,255); doc.setFontSize(15); doc.setFont('helvetica','bold');
+      doc.text('GRAD-CAM EXPLANATION',M,16);
+      doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(74,98,128);
+      doc.text('Image regions that most influenced the prediction: '+lastResult.prediction.replace('_',' '),M,24);
+      let y2=42;
+      const ov=await composeOverlay();
+      const orig=await loadImage(lastResult.imageUrl);
+      const oc=document.createElement('canvas'); const os=640/Math.max(orig.naturalWidth,orig.naturalHeight);
+      oc.width=Math.round(orig.naturalWidth*os); oc.height=Math.round(orig.naturalHeight*os);
+      oc.getContext('2d').drawImage(orig,0,0,oc.width,oc.height);
+      const bw=80, bh=96;
+      const f1=fitBox(oc.width,oc.height,bw,bh), f2=fitBox(ov.w,ov.h,bw,bh);
+      doc.setFillColor(0,0,0); doc.rect(M,y2,bw,bh,'F'); doc.rect(M+bw+10,y2,bw,bh,'F');
+      doc.addImage(oc.toDataURL('image/jpeg',.85),'JPEG',M+f1.dx,y2+f1.dy,f1.w,f1.h);
+      doc.addImage(ov.url,'JPEG',M+bw+10+f2.dx,y2+f2.dy,f2.w,f2.h);
+      doc.setTextColor(74,98,128); doc.setFontSize(8);
+      doc.text('ORIGINAL',M,y2+bh+6); doc.text('GRAD-CAM OVERLAY'+(hm.lungOnly?' (lung fields only)':''),M+bw+10,y2+bh+6);
+      y2+=bh+16;
+      // colour legend
+      const lw=W-M*2, steps=60;
+      for(let i=0;i<steps;i++){
+        const c=jetRGB(i/(steps-1)); doc.setFillColor(Math.round(c[0]*255),Math.round(c[1]*255),Math.round(c[2]*255));
+        doc.rect(M+i*lw/steps,y2,lw/steps+.3,4,'F');
+      }
+      doc.setTextColor(74,98,128); doc.setFontSize(7);
+      doc.text('Low influence',M,y2+9); doc.text('High influence',W-M,y2+9,{align:'right'});
+      y2+=20;
+      doc.setTextColor(224,234,245); doc.setFontSize(9);
+      const txt=doc.splitTextToSize('Grad-CAM highlights the regions of the image that contributed most to the model\'s predicted class. '+
+        'Red areas had the strongest influence, blue areas the weakest. The map is computed on a coarse 10x10 grid and smoothed for display, '+
+        'so it shows approximate areas of attention, not exact lesion boundaries. '+
+        (hm.lungOnly?'Regions outside an approximate lung template are hidden. ':'')+
+        'Highlights indicate what influenced the model and are not confirmed pathology.',W-M*2);
+      doc.text(txt,M,y2);
+      drawFooter();
+    }
+    const fname=(lastResult.patient.name||'report').replace(/[^A-Za-z0-9_-]+/g,'_');
+    doc.save('AXDS_Report_'+fname+'_'+Date.now()+'.pdf');
+  } catch(e){alert('PDF error: '+e.message);}
+  btn.textContent='⬇ DOWNLOAD REPORT'; btn.disabled=false;
+}
+</script>
+
+<!-- ── AUTH OVERLAY ── -->
+<div id="auth-overlay">
+
+  <!-- LOGIN -->
+  <div id="login-screen" class="auth-card">
+    <div class="auth-logo">// AXDS · v1.0</div>
+    <div class="auth-title">Welcome <span>Back</span></div>
+    <div class="auth-subtitle">Sign in to access the diagnostic system</div>
+    <div class="auth-field"><label>EMAIL</label><input type="email" id="login-email" placeholder="you@example.com"></div>
+    <div class="auth-field"><label>PASSWORD</label><input type="password" id="login-pass" placeholder="••••••••"></div>
+    <div class="auth-error" id="login-error"></div>
+    <button class="auth-btn" id="login-btn">SIGN IN</button>
+    <div class="auth-switch">Don't have an account? <span id="go-signup">Sign up</span></div>
+  </div>
+
+  <!-- SIGNUP -->
+  <div id="signup-screen" class="auth-card" style="display:none;">
+    <div class="auth-logo">// AXDS · v1.0</div>
+    <div class="auth-title">Create <span>Account</span></div>
+    <div class="auth-subtitle">Join the AI diagnostic platform</div>
+    <div class="auth-field"><label>FULL NAME</label><input type="text" id="signup-name" placeholder="John Doe"></div>
+    <div class="auth-field"><label>EMAIL</label><input type="email" id="signup-email" placeholder="you@example.com"></div>
+    <div class="auth-field"><label>PASSWORD</label><input type="password" id="signup-pass" placeholder="Min. 6 characters"></div>
+    <div class="auth-field"><label>CONFIRM PASSWORD</label><input type="password" id="signup-pass2" placeholder="Repeat password"></div>
+    <div class="auth-terms">
+      <input type="checkbox" id="signup-terms">
+      <label for="signup-terms">I agree to the <a href="#" onclick="return false;">Terms of Use</a> and <a href="#" onclick="return false;">Privacy Policy</a></label>
+    </div>
+    <div class="auth-error" id="signup-error"></div>
+    <button class="auth-btn" id="signup-btn">CREATE ACCOUNT</button>
+    <div class="auth-switch">Already have an account? <span id="go-login">Sign in</span></div>
+  </div>
+
+</div>
+<!-- ── END AUTH OVERLAY ── -->
+</body>
+</html>
